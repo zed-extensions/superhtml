@@ -8,4 +8,9 @@ repository = "https://github.com/WeetHet/superhtml-zed"
 
 [language_servers.superhtml]
 name = "superhtml"
-languages = ["HTML"]
+languages = ["HTML", "SuperHTML"]
+
+[grammars.superhtml]
+repository = "https://github.com/kristoff-it/superhtml"
+commit = "48c3d2285d6c95bbcfb4055c8c84a2c1079fb2aa"
+path = "tree-sitter-superhtml"

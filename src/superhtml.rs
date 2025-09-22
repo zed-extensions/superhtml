@@ -44,17 +44,20 @@ impl SuperHtmlExtension {
                 zed::Architecture::X8664 => "x86_64",
                 zed::Architecture::X86 => return Err("unsupported architecture".into()),
             },
-            os = match platform {
-                zed::Os::Mac => "macos",
-                zed::Os::Linux => "linux-musl",
-                zed::Os::Windows => "windows",
+            os = match (platform, arch) {
+                (zed::Os::Mac, _) => "macos",
+                (zed::Os::Linux, zed::Architecture::Aarch64) => "linux",
+                (zed::Os::Linux, zed::Architecture::X8664) => "linux-musl",
+                (zed::Os::Linux, zed::Architecture::X86) =>
+                    return Err("unsupported architecture".into()),
+                (zed::Os::Windows, _) => "windows",
             }
         );
         let asset_name = format!(
             "{asset_without_ext}.{ext}",
             ext = match platform {
-                zed::Os::Mac | zed::Os::Linux => "tar.gz",
-                zed_extension_api::Os::Windows => "zip",
+                zed::Os::Linux => "tar.xz",
+                zed::Os::Mac | zed::Os::Windows => "zip",
             }
         );
 
@@ -68,7 +71,7 @@ impl SuperHtmlExtension {
         fs::create_dir_all(&version_dir).map_err(|e| format!("failed to create directory: {e}"))?;
 
         let binary_path = format!(
-            "{version_dir}/{asset_without_ext}/{binary}",
+            "{version_dir}/{binary}",
             binary = match platform {
                 zed::Os::Mac | zed::Os::Linux => "superhtml",
                 zed::Os::Windows => "superhtml.exe",
@@ -85,10 +88,10 @@ impl SuperHtmlExtension {
                 &asset.download_url,
                 &version_dir,
                 match platform {
-                    zed_extension_api::Os::Mac | zed_extension_api::Os::Linux => {
-                        zed::DownloadedFileType::GzipTar
+                    zed_extension_api::Os::Linux => zed::DownloadedFileType::GzipTar,
+                    zed_extension_api::Os::Mac | zed_extension_api::Os::Windows => {
+                        zed::DownloadedFileType::Zip
                     }
-                    zed_extension_api::Os::Windows => zed::DownloadedFileType::Zip,
                 },
             )
             .map_err(|e| format!("failed to download file: {e}"))?;

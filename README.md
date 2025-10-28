@@ -1,6 +1,6 @@
 # SuperHTML support for Zed
 
-This extension provides support for [SuperHTML](https://github.com/kristoff-it/superhtml) language server.
+This extension provides support for the [SuperHTML](https://github.com/kristoff-it/superhtml) language and LSP.
 
 ## Installation
 

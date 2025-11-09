@@ -1,10 +1,15 @@
 id = "superhtml"
 name = "Superhtml"
 description = "Superhtml support."
-version = "0.1.0"
+version = "0.1.1"
 schema_version = 1
-authors = ["WeetHet <stas.ale66@gmail.com>"]
+authors = ["WeetHet <stas.ale66@gmail.com>", "sineptic <sineptic0@gmail.com>"]
 repository = "https://github.com/WeetHet/superhtml-zed"
+
+[[capabilities]]
+kind = "process:exec"
+command = "tar"
+args = ["-xf", "**"]
 
 [language_servers.superhtml]
 name = "superhtml"

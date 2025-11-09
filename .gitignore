@@ -10,6 +10,8 @@
 
 !src
 !src/*.rs
+!lanugages
+!lanugages/**
 
 # other files
 !LICENSE

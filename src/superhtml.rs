@@ -54,8 +54,8 @@ impl SuperHtmlExtension {
         let asset_name = format!(
             "{asset_without_ext}.{ext}",
             ext = match platform {
-                zed::Os::Mac | zed::Os::Linux => "tar.gz",
-                zed_extension_api::Os::Windows => "zip",
+                zed::Os::Linux => "tar.xz",
+                zed::Os::Mac | zed::Os::Windows => "zip",
             }
         );
 
@@ -63,7 +63,18 @@ impl SuperHtmlExtension {
             .assets
             .iter()
             .find(|asset| asset.name == asset_name)
-            .ok_or_else(|| format!("no asset found matching {:?}", asset_name))?;
+            .ok_or_else(|| {
+                zed::set_language_server_installation_status(
+                    language_server_id,
+                    &zed::LanguageServerInstallationStatus::Failed(
+                        "Can't download language server.".into(),
+                    ),
+                );
+                format!(
+                    "no asset found matching {:?}, available assets: {:?}",
+                    asset_name, release.assets
+                )
+            })?;
 
         let version_dir = format!("superhtml-{}", release.version);
         fs::create_dir_all(&version_dir).map_err(|e| format!("failed to create directory: {e}"))?;

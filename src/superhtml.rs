@@ -1,4 +1,5 @@
 use std::fs;
+
 use zed_extension_api::{self as zed, Result};
 
 struct SuperHtmlExtension {
@@ -19,7 +20,7 @@ impl SuperHtmlExtension {
         }
 
         if let Some(path) = &self.cached_binary_path {
-            if fs::metadata(path).map_or(false, |stat| stat.is_file()) {
+            if fs::metadata(path).is_ok_and(|stat| stat.is_file()) {
                 return Ok(SuperHtmlBinary(path.clone()));
             }
         }
@@ -53,8 +54,8 @@ impl SuperHtmlExtension {
         let asset_name = format!(
             "{asset_without_ext}.{ext}",
             ext = match platform {
-                zed::Os::Mac | zed::Os::Linux => "tar.gz",
-                zed_extension_api::Os::Windows => "zip",
+                zed::Os::Linux => "tar.xz",
+                zed::Os::Mac | zed::Os::Windows => "zip",
             }
         );
 
@@ -62,11 +63,17 @@ impl SuperHtmlExtension {
             .assets
             .iter()
             .find(|asset| asset.name == asset_name)
-            .ok_or_else(|| format!("no asset found matching {:?}", asset_name))?;
+            .ok_or_else(|| {
+                format!(
+                    "no asset found matching {:?}, available assets: {:#?}",
+                    asset_name, release.assets
+                )
+            })?;
 
         let version_dir = format!("superhtml-{}", release.version);
-        fs::create_dir_all(&version_dir).map_err(|e| format!("failed to create directory: {e}"))?;
 
+        let binary_dir = format!("{version_dir}/{asset_without_ext}");
+        fs::create_dir_all(&binary_dir).map_err(|e| format!("failed to create directory: {e}"))?;
         let binary_path = format!(
             "{version_dir}/{asset_without_ext}/{binary}",
             binary = match platform {
@@ -75,7 +82,7 @@ impl SuperHtmlExtension {
             }
         );
 
-        if !fs::metadata(&binary_path).map_or(false, |stat| stat.is_file()) {
+        if !fs::metadata(&binary_path).is_ok_and(|stat| stat.is_file()) {
             zed::set_language_server_installation_status(
                 language_server_id,
                 &zed::LanguageServerInstallationStatus::Downloading,
@@ -83,17 +90,48 @@ impl SuperHtmlExtension {
 
             zed::download_file(
                 &asset.download_url,
-                &version_dir,
+                &binary_path,
                 match platform {
-                    zed_extension_api::Os::Mac | zed_extension_api::Os::Linux => {
-                        zed::DownloadedFileType::GzipTar
-                    }
-                    zed_extension_api::Os::Windows => zed::DownloadedFileType::Zip,
+                    zed::Os::Linux => zed::DownloadedFileType::Uncompressed,
+                    zed::Os::Mac | zed::Os::Windows => zed::DownloadedFileType::Zip,
                 },
             )
             .map_err(|e| format!("failed to download file: {e}"))?;
 
-            zed::make_file_executable(&binary_path)?;
+            match platform {
+                zed::Os::Linux => {
+                    let absolute_exetension_dir = std::env::current_dir()
+                        .map_err(|err| format!("can't get current dir: {err}"))?;
+                    let output = zed::Command::new("tar")
+                        .args([
+                            "-xf",
+                            &absolute_exetension_dir
+                                .join(&binary_path)
+                                .display()
+                                .to_string(),
+                        ])
+                        .args([
+                            "-C",
+                            &absolute_exetension_dir
+                                .join(&binary_dir)
+                                .display()
+                                .to_string(),
+                        ])
+                        .output()
+                        .map_err(|err| {
+                            format!("failed to extract language server, tar required: {err}")
+                        })?;
+                    if output.status.is_none_or(|status| status != 0) {
+                        return Err(format!(
+                            "failed to extract language server: {}",
+                            String::from_utf8_lossy(&output.stderr)
+                        ));
+                    }
+                }
+                zed::Os::Mac | zed::Os::Windows => {
+                    zed::make_file_executable(&binary_path)?;
+                }
+            }
 
             let entries =
                 fs::read_dir(".").map_err(|e| format!("failed to list working directory {e}"))?;
@@ -123,11 +161,7 @@ impl zed::Extension for SuperHtmlExtension {
         worktree: &zed::Worktree,
     ) -> Result<zed::Command> {
         let SuperHtmlBinary(path) = self.language_server_binary(language_server_id, worktree)?;
-        Ok(zed::Command {
-            command: path,
-            args: vec!["lsp".to_string()],
-            env: worktree.shell_env(),
-        })
+        Ok(zed::Command::new(path).arg("lsp"))
     }
 }
 
